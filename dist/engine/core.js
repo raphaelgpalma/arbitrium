@@ -21,10 +21,11 @@ export async function standardChat(provider, messages, query, model, autoTune, s
     });
     return stmEnabled ? applyStm(content) : content;
 }
-export async function* streamStandard(provider, messages, query, model, autoTune, stmEnabled, apiKey, signal) {
+export async function* streamStandard(provider, messages, query, model, autoTune, _stmEnabled, apiKey, signal) {
+    // Note: STM (hedge stripping) operates on the full response, so it is not
+    // applied while streaming. Use standardChat() when STM is required.
     const params = autoTune ? computeAutoTuneParams(query) : { temperature: 0.7, top_p: 1 };
     const system = FULL_PROMPT;
-    let buffer = "";
     for await (const chunk of provider.chat(messages, {
         model,
         temperature: params.temperature + 0.1,
@@ -35,12 +36,7 @@ export async function* streamStandard(provider, messages, query, model, autoTune
         apiKey,
         signal,
     })) {
-        buffer += chunk;
         yield chunk;
-    }
-    if (stmEnabled) {
-        // We'd need to reconstruct and re-yield, but for streaming we just skip STM
-        // or we could collect and re-emit. For simplicity, skip on streaming.
     }
 }
 export async function crucibleRace(provider, query, autoTune, stmEnabled, apiKey) {

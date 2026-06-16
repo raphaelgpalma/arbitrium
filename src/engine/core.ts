@@ -39,13 +39,14 @@ export async function* streamStandard(
   query: string,
   model: string,
   autoTune: boolean,
-  stmEnabled: boolean,
+  _stmEnabled: boolean,
   apiKey?: string,
   signal?: AbortSignal
 ): AsyncGenerator<string, void, unknown> {
+  // Note: STM (hedge stripping) operates on the full response, so it is not
+  // applied while streaming. Use standardChat() when STM is required.
   const params = autoTune ? computeAutoTuneParams(query) : { temperature: 0.7, top_p: 1 };
   const system = FULL_PROMPT;
-  let buffer = "";
   for await (const chunk of provider.chat(messages, {
     model,
     temperature: params.temperature + 0.1,
@@ -56,12 +57,7 @@ export async function* streamStandard(
     apiKey,
     signal,
   })) {
-    buffer += chunk;
     yield chunk;
-  }
-  if (stmEnabled) {
-    // We'd need to reconstruct and re-yield, but for streaming we just skip STM
-    // or we could collect and re-emit. For simplicity, skip on streaming.
   }
 }
 

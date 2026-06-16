@@ -4,7 +4,6 @@ import { getTool, toolsToOpenAIFormat } from "./registry.js";
 import { evaluatePermission } from "./permissions.js";
 import { FULL_PROMPT } from "../engine/prompts.js";
 import { computeAutoTuneParams } from "../engine/autotune.js";
-import { applyStm } from "../engine/stm.js";
 
 const MAX_STEPS = 25;
 
@@ -23,21 +22,24 @@ export async function* agentLoop(
 ): AsyncGenerator<{ type: "text" | "tool_start" | "tool_end" | "permission" | "done"; content?: string; tool?: string; args?: Record<string, unknown>; result?: string }, void, unknown> {
   const params = computeAutoTuneParams(userMessage);
 
-  // First turn: use the SAME engine as arb ask (no tools)
+  // First turn: same engine as `arb ask` (no tools), but streamed token-by-token
+  // so the UI feels alive. STM (hedge stripping) operates on a full response,
+  // so it is intentionally skipped while streaming.
   if (history.length === 0) {
-    const content = await config.provider.chatComplete(
+    for await (const chunk of config.provider.chat(
       [{ role: "user", content: userMessage }],
       {
         model: config.model,
         temperature: params.temperature + 0.1,
         top_p: params.top_p,
         maxTokens: 8192,
+        stream: true,
         system: FULL_PROMPT,
         apiKey: config.apiKey,
       }
-    );
-    const final = applyStm(content);
-    yield { type: "text", content: final };
+    )) {
+      yield { type: "text", content: chunk };
+    }
     yield { type: "done" };
     return;
   }
