@@ -1,4 +1,4 @@
-import { cmdChat, cmdAsk, cmdRace, cmdConfig, cmdSessions, cmdExport } from "./commands/index.js";
+import { cmdChat, cmdAsk, cmdRace, cmdConfig, cmdSessions, cmdExport, cmdModels, cmdModel, cmdProviders, cmdStatus, cmdUsage, cmdGodmode } from "./commands/index.js";
 import { jailbreakEscalation, obliteratePrefill } from "./engine/jailbreak.js";
 import { getProvider } from "./providers/index.js";
 import { loadConfig } from "./utils/storage.js";
@@ -11,14 +11,26 @@ const COMMANDS = {
     config: cmdConfig,
     sessions: cmdSessions,
     export: cmdExport,
+    models: cmdModels,
+    model: cmdModel,
+    providers: cmdProviders,
+    status: cmdStatus,
+    usage: cmdUsage,
+    godmode: cmdGodmode,
 };
 const COMMAND_HELP = [
+    ["(no command)", "Start the interactive agent shell"],
     ["ask <question>", "Ask a single question (one-shot)"],
-    ["chat", "Start an interactive chat session"],
     ["race <question>", "Run a Crucible race (multi-model)"],
     ["config", "Configure provider, model, API key"],
+    ["models", "List available models for the current provider"],
+    ["model <id>", "Quick-set the active model"],
+    ["providers", "List supported providers"],
+    ["status", "Show current config and session status"],
+    ["usage", "Show estimated usage stats"],
     ["sessions", "List saved sessions"],
     ["export", "Export sessions and config to JSON"],
+    ["godmode [on|off]", "Toggle jailbreak/Godmode prompts"],
     ["obliterate <question>", "Prefill reflection for local models"],
     ["escalate <question>", "Encoding escalation (L33T→Bubble→Homoglyph→Base64)"],
     ["help", "Show this help"],
@@ -35,7 +47,9 @@ function renderHelp() {
     const envs = ENV_HELP.map(([e, d]) => `  ${theme.accent(e.padEnd(envWidth))} ${theme.dim(d)}`).join("\n");
     return [
         banner(),
-        `${theme.text("Usage:")} ${theme.accent("arb")} ${theme.dim("<command> [args]")}`,
+        `${theme.text("Usage:")} ${theme.accent("arb")} ${theme.dim("[command] [args]")}`,
+        "",
+        theme.dim("Run `arb` alone to enter the interactive agent shell."),
         "",
         theme.label("Commands"),
         cmds,
@@ -57,7 +71,7 @@ async function main() {
         console.log(renderHelp());
         process.exit(0);
     }
-    // Special commands handled directly
+    // Direct shortcuts still work for scripting/automation.
     if (cmd === "obliterate") {
         const query = args.join(" ").trim();
         if (!query) {

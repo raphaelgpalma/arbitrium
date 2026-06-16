@@ -3,13 +3,17 @@ import { evaluatePermission } from "./permissions.js";
 import { AGENT_SYSTEM_PROMPT } from "./prompt.js";
 import { computeAutoTuneParams } from "../engine/autotune.js";
 import { closeAllShellBridges, setShellProgressCallback } from "./tools/bash.js";
+import { resolveSystemPrompt } from "../engine/core.js";
 const MAX_STEPS = 25;
 export async function* agentLoop(userMessage, history, config) {
     const params = computeAutoTuneParams(userMessage);
     // Agent mode with tools is always used in chat so the model can act on the
     // very first user message (e.g. "list the current directory").
+    const systemPrompt = config.godmode
+        ? resolveSystemPrompt(config.model, true)
+        : AGENT_SYSTEM_PROMPT;
     const messages = [
-        { role: "system", content: AGENT_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         ...history,
         { role: "user", content: userMessage },
     ];

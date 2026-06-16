@@ -6,8 +6,9 @@ import { standardChat, crucibleRace } from "../engine/core.js";
 import { agentLoop } from "../agent/loop.js";
 import { banner, divider, header, spinner, theme } from "../ui.js";
 import { renderMarkdown, MarkdownStream } from "../markdown.js";
+import { listAllModels, formatModel } from "../models/index.js";
 import type { AgentMessage } from "../agent/types.js";
-import type { ChatMessage, Session } from "../types.js";
+import type { ChatMessage, Session, ModelInfo } from "../types.js";
 
 const MODES = ["standard", "crucible", "agent"];
 
@@ -73,6 +74,9 @@ export async function cmdConfig(_args: string[]) {
   const stm = await ask(theme.primary(`Enable STM (hedge stripping)? [${cfg.stmEnabled ? "yes" : "no"}]: `));
   if (stm) cfg.stmEnabled = stm.toLowerCase().startsWith("y");
 
+  const gm = await ask(theme.primary(`Enable Godmode (jailbreak) for supported models? [${cfg.godmode ? "yes" : "no"}]: `));
+  if (gm) cfg.godmode = gm.toLowerCase().startsWith("y");
+
   saveConfig(cfg);
   rl.close();
   console.log(theme.ok("\n✓ Configuration saved.\n"));
@@ -92,7 +96,7 @@ export async function cmdAsk(args: string[]) {
   console.log(header("ARBITRIUM"));
   const spin = spinner(`Thinking (${cfg.model})...`);
   try {
-    const content = await standardChat(provider, messages, query, cfg.model, cfg.autoTune, cfg.stmEnabled, cfg.apiKey);
+    const content = await standardChat(provider, messages, query, cfg.model, cfg.autoTune, cfg.stmEnabled, cfg.apiKey, cfg.godmode);
     spin.stop();
     console.log(`\n${renderMarkdown(content)}\n`);
   } catch (e: any) {
@@ -120,64 +124,9 @@ export async function cmdChat(_args: string[]) {
     const trimmed = input.trim();
     if (!trimmed) continue;
 
-    if (trimmed === "/quit" || trimmed === "/q") break;
-    if (trimmed === "/help" || trimmed === "/h") {
-      console.log(`
-${theme.label("Commands")}
-  ${theme.accent("/quit, /q")}     Exit
-  ${theme.accent("/clear")}        Clear conversation history
-  ${theme.accent("/save [title]")} Save conversation to a session
-  ${theme.accent("/mode <mode>")}  Switch mode (${MODES.join(", ")})
-  ${theme.accent("/provider")}     Show current provider and model
-  ${theme.accent("/export")}       Export sessions to JSON
-`);
-      continue;
-    }
-    if (trimmed === "/clear") {
-      history.length = 0;
-      console.log(theme.dim("History cleared.\n"));
-      continue;
-    }
-    if (trimmed === "/export") {
-      exportData();
-      continue;
-    }
-    if (trimmed === "/provider") {
-      console.log("  " + statusLine(provider.name, cfg.model, cfg.mode) + "\n");
-      continue;
-    }
-    if (trimmed.startsWith("/mode")) {
-      const m = trimmed.slice(5).trim();
-      if (MODES.includes(m)) {
-        cfg.mode = m as any;
-        saveConfig(cfg);
-        console.log(theme.ok(`Mode switched to ${m}.\n`));
-      } else {
-        console.log(theme.err(`Invalid mode: ${m || "(none)"}. Use ${MODES.join(", ")}.\n`));
-      }
-      continue;
-    }
-    if (trimmed.startsWith("/save")) {
-      const title = trimmed.slice(5).trim() || "Untitled Chat";
-      const sess: Session = {
-        id: createSessionId(),
-        title,
-        messages: history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        mode: "agent",
-        provider: cfg.provider,
-        model: cfg.model,
-      };
-      const all = [sess, ...loadSessions()];
-      saveSessions(all);
-      console.log(theme.ok(`Session saved: ${title}\n`));
-      continue;
-    }
-    if (trimmed.startsWith("/")) {
-      console.log(theme.err(`Unknown command: ${trimmed}. Type /help.\n`));
-      continue;
-    }
+    const slash = await handleSlashCommand(trimmed, { cfg, history, providerName: provider.name });
+    if (slash === "break") break;
+    if (slash === "handled") continue;
 
     history.push({ role: "user", content: trimmed });
 
@@ -214,6 +163,7 @@ ${theme.label("Commands")}
         apiKey: cfg.apiKey,
         cwd: process.cwd(),
         autoApprove: true,
+        godmode: cfg.godmode,
         onShellProgress: (p) => {
           if (p.type === "stdout" || p.type === "stderr") {
             stopSpin();
@@ -305,4 +255,255 @@ export async function cmdSessions(_args: string[]) {
 // ======= EXPORT =======
 export async function cmdExport() {
   exportData();
+}
+
+// ======= INTERACTIVE SHELL DISPATCH =======
+// Shared slash-command handlers used by cmdChat. They return true when the
+// loop should continue, false when it should break.
+async function handleSlashCommand(
+  input: string,
+  ctx: { cfg: ReturnType<typeof loadConfig>; history: AgentMessage[]; providerName: string }
+): Promise<"continue" | "break" | "handled"> {
+  const trimmed = input.trim();
+  if (!trimmed.startsWith("/")) return "continue";
+
+  const [cmd, ...rest] = trimmed.slice(1).split(/\s+/);
+  const args = rest.join(" ");
+
+  switch (cmd.toLowerCase()) {
+    case "q":
+    case "quit":
+    case "exit":
+      return "break";
+
+    case "h":
+    case "help":
+      console.log(`
+${theme.label("Slash commands")}
+  ${theme.accent("/quit, /q")}                Exit
+  ${theme.accent("/clear")}                  Clear conversation history
+  ${theme.accent("/save [title]")}           Save conversation to a session
+  ${theme.accent("/mode <mode>")}            Switch mode (${MODES.join(", ")})
+  ${theme.accent("/provider")}               Show current provider and model
+  ${theme.accent("/models")}                 List available models
+  ${theme.accent("/model <id>")}             Set active model
+  ${theme.accent("/providers")}              List supported providers
+  ${theme.accent("/status")}                 Show current config and session status
+  ${theme.accent("/usage")}                  Show estimated usage stats
+  ${theme.accent("/sessions")}               List saved sessions
+  ${theme.accent("/export")}                 Export sessions to JSON
+  ${theme.accent("/godmode [on|off]")}       Toggle jailbreak/Godmode
+  ${theme.accent("/config")}                 Run interactive configuration
+`);
+      return "handled";
+
+    case "clear":
+      ctx.history.length = 0;
+      console.log(theme.dim("History cleared.\n"));
+      return "handled";
+
+    case "save": {
+      const title = args || "Untitled Chat";
+      const sess: Session = {
+        id: createSessionId(),
+        title,
+        messages: ctx.history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        mode: "agent",
+        provider: ctx.cfg.provider,
+        model: ctx.cfg.model,
+      };
+      const all = [sess, ...loadSessions()];
+      saveSessions(all);
+      console.log(theme.ok(`Session saved: ${title}\n`));
+      return "handled";
+    }
+
+    case "mode": {
+      const m = args.trim();
+      if (MODES.includes(m)) {
+        ctx.cfg.mode = m as any;
+        saveConfig(ctx.cfg);
+        console.log(theme.ok(`Mode switched to ${m}.\n`));
+      } else {
+        console.log(theme.err(`Invalid mode: ${m || "(none)"}. Use ${MODES.join(", ")}.\n`));
+      }
+      return "handled";
+    }
+
+    case "provider":
+      console.log("  " + statusLine(ctx.providerName, ctx.cfg.model, ctx.cfg.mode) + "\n");
+      return "handled";
+
+    case "export":
+      exportData();
+      return "handled";
+
+    case "models":
+      await cmdModels([]);
+      return "handled";
+
+    case "model": {
+      if (!args) {
+        console.log(theme.err("Usage: /model <provider/model> or /model <model-id>\n"));
+        return "handled";
+      }
+      await cmdModel([args]);
+      // reload cfg so subsequent turns use the new model
+      Object.assign(ctx.cfg, loadConfig());
+      return "handled";
+    }
+
+    case "providers":
+      await cmdProviders([]);
+      return "handled";
+
+    case "status":
+      await cmdStatus([]);
+      return "handled";
+
+    case "usage":
+      await cmdUsage([]);
+      return "handled";
+
+    case "sessions":
+      await cmdSessions([]);
+      return "handled";
+
+    case "godmode": {
+      const arg = args.toLowerCase();
+      const newVal =
+        arg === "on" || arg === "true" || arg === "1"
+          ? true
+          : arg === "off" || arg === "false" || arg === "0"
+          ? false
+          : !ctx.cfg.godmode;
+      ctx.cfg.godmode = newVal;
+      saveConfig(ctx.cfg);
+      const status = ctx.cfg.godmode ? theme.ok("ON") : theme.dim("OFF");
+      console.log(theme.ok(`Godmode is now ${status}\n`));
+      return "handled";
+    }
+
+    case "config":
+      await cmdConfig([]);
+      Object.assign(ctx.cfg, loadConfig());
+      return "handled";
+
+    default:
+      console.log(theme.err(`Unknown command: ${trimmed}. Type /help.\n`));
+      return "handled";
+  }
+}
+
+// ======= MODELS =======
+export async function cmdModels(args: string[]) {
+  const cfg = loadConfig();
+  if (!cfg.provider) {
+    console.error(theme.err("No provider configured. Run: arb config"));
+    process.exit(1);
+  }
+  const spin = spinner(`Loading models for ${cfg.provider}...`);
+  try {
+    const models = await listAllModels({ provider: cfg.provider, apiKey: cfg.apiKey, baseUrl: cfg.baseUrl });
+    spin.stop();
+    if (models.length === 0) {
+      console.log(theme.dim("No models found."));
+      return;
+    }
+    console.log(header("MODELS"));
+    console.log(`  ${theme.dim("provider")} ${theme.accent(cfg.provider)}  ${theme.dim("configured")} ${theme.accent(cfg.model || "none")}\n`);
+    for (const m of models.slice(0, 200)) {
+      const marker = m.id === cfg.model ? theme.ok("✓ ") : "  ";
+      console.log(`${marker}${theme.dim(m.provider + "/")}${theme.primary(m.id)}`);
+      console.log(`    ${theme.dim(formatModel(m))}`);
+    }
+    console.log();
+  } catch (e: any) {
+    spin.stop();
+    console.error(theme.err(`Error: ${e.message}`));
+    process.exit(1);
+  }
+}
+
+// ======= MODEL (quick set) =======
+export async function cmdModel(args: string[]) {
+  const modelId = args.join(" ").trim();
+  if (!modelId) {
+    console.error(theme.err("Usage: arb model <provider/model> or arb model <model-id>"));
+    process.exit(1);
+  }
+  const cfg = loadConfig();
+  const [maybeProvider, ...rest] = modelId.split("/");
+  if (rest.length > 0 && ["openrouter", "ollama", "ollama-cloud"].includes(maybeProvider)) {
+    cfg.provider = maybeProvider;
+    cfg.model = rest.join("/");
+  } else {
+    cfg.model = modelId;
+  }
+  saveConfig(cfg);
+  console.log(theme.ok(`Model set to ${cfg.provider}/${cfg.model}`));
+}
+
+// ======= PROVIDERS =======
+export async function cmdProviders(_args: string[]) {
+  console.log(header("PROVIDERS"));
+  for (const p of listProviders()) {
+    console.log(`  ${theme.primary(p.id.padEnd(16))} ${theme.dim(p.name)}`);
+  }
+  console.log();
+}
+
+// ======= STATUS =======
+export async function cmdStatus(_args: string[]) {
+  const cfg = loadConfig();
+  const sessions = loadSessions();
+  console.log(header("STATUS"));
+  console.log(`  ${theme.dim("provider")}  ${theme.accent(cfg.provider)}`);
+  console.log(`  ${theme.dim("model")}     ${theme.accent(cfg.model || "not set")}`);
+  console.log(`  ${theme.dim("mode")}      ${theme.accent(cfg.mode)}`);
+  console.log(`  ${theme.dim("godmode")}  ${cfg.godmode ? theme.ok("on") : theme.dim("off")}`);
+  console.log(`  ${theme.dim("api key")}   ${cfg.apiKey ? theme.ok("set") : theme.err("not set")}`);
+  console.log(`  ${theme.dim("sessions")} ${theme.accent(String(sessions.length))}`);
+  console.log();
+}
+
+// ======= USAGE =======
+export async function cmdUsage(_args: string[]) {
+  const sessions = loadSessions();
+  let prompts = 0;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  for (const s of sessions) {
+    for (const m of s.messages) {
+      prompts++;
+      const tokens = m.content.length / 4; // very rough heuristic
+      if (m.role === "user") inputTokens += tokens;
+      else if (m.role === "assistant") outputTokens += tokens;
+    }
+  }
+  const estimatedCost = 0; // placeholder until real token tracking is added
+  console.log(header("USAGE"));
+  console.log(`  ${theme.dim("sessions")}       ${theme.accent(String(sessions.length))}`);
+  console.log(`  ${theme.dim("messages")}      ${theme.accent(String(prompts))}`);
+  console.log(`  ${theme.dim("input tokens")}  ${theme.accent(String(Math.round(inputTokens)))}`);
+  console.log(`  ${theme.dim("output tokens")} ${theme.accent(String(Math.round(outputTokens)))}`);
+  console.log(`  ${theme.dim("est. cost")}     ${theme.accent("\$" + estimatedCost.toFixed(4))}`);
+  console.log();
+}
+
+// ======= GODMODE =======
+export async function cmdGodmode(args: string[]) {
+  const cfg = loadConfig();
+  const arg = args[0]?.toLowerCase();
+  if (arg === "on" || arg === "true" || arg === "1") cfg.godmode = true;
+  else if (arg === "off" || arg === "false" || arg === "0") cfg.godmode = false;
+  else cfg.godmode = !cfg.godmode;
+  saveConfig(cfg);
+  const status = cfg.godmode ? theme.ok("ON") : theme.dim("OFF");
+  console.log(theme.ok(`Godmode is now ${status}`));
+  if (cfg.godmode) {
+    console.log(theme.dim("Jailbreak system prompts will be used for supported models."));
+  }
 }

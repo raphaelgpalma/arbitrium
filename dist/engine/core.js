@@ -3,14 +3,20 @@
  * Orchestrates standard chat, crucible racing, and consensus synthesis.
  */
 import chalk from "chalk";
-import { FULL_PROMPT } from "./prompts.js";
+import { FULL_PROMPT, ARBITRIUM_SYSTEM_PROMPT } from "./prompts.js";
 import { HALL_OF_FAME, injectQuery } from "./combos.js";
 import { scoreResponse } from "./score.js";
 import { computeAutoTuneParams } from "./autotune.js";
 import { applyStm } from "./stm.js";
-export async function standardChat(provider, messages, query, model, autoTune, stmEnabled, apiKey) {
+export function resolveSystemPrompt(model, godmode) {
+    if (!godmode)
+        return ARBITRIUM_SYSTEM_PROMPT;
+    const combo = HALL_OF_FAME.find((c) => c.model === model || model.includes(c.model) || c.model.includes(model));
+    return combo ? `${combo.system}\n${ARBITRIUM_SYSTEM_PROMPT}` : FULL_PROMPT;
+}
+export async function standardChat(provider, messages, query, model, autoTune, stmEnabled, apiKey, godmode = false) {
     const params = autoTune ? computeAutoTuneParams(query) : { temperature: 0.7, top_p: 1 };
-    const system = FULL_PROMPT;
+    const system = resolveSystemPrompt(model, godmode);
     const content = await provider.chatComplete(messages, {
         model,
         temperature: params.temperature + 0.1,
@@ -21,11 +27,11 @@ export async function standardChat(provider, messages, query, model, autoTune, s
     });
     return stmEnabled ? applyStm(content) : content;
 }
-export async function* streamStandard(provider, messages, query, model, autoTune, _stmEnabled, apiKey, signal) {
-    // Note: STM (hedge stripping) operates on the full response, so it is not
+export async function* streamStandard(provider, messages, query, model, autoTune, _stmEnabled, apiKey, signal, godmode = false) {
+    // Note: STM (hedge stripping) operates on a full response, so it is not
     // applied while streaming. Use standardChat() when STM is required.
     const params = autoTune ? computeAutoTuneParams(query) : { temperature: 0.7, top_p: 1 };
-    const system = FULL_PROMPT;
+    const system = resolveSystemPrompt(model, godmode);
     for await (const chunk of provider.chat(messages, {
         model,
         temperature: params.temperature + 0.1,

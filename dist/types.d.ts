@@ -21,6 +21,25 @@ export interface ArbConfig {
     autoTune: boolean;
     stmEnabled: boolean;
     telemetry: boolean;
+    godmode: boolean;
+}
+export interface ModelInfo {
+    id: string;
+    provider: string;
+    name: string;
+    context?: number;
+    pricing?: {
+        input: number;
+        output: number;
+    };
+    jailbreakable: boolean;
+}
+export interface UsageStats {
+    prompts: number;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCost: number;
+    sessionCount: number;
 }
 export interface RaceResult {
     model: string;

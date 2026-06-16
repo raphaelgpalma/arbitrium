@@ -6,6 +6,7 @@ import { FULL_PROMPT } from "../engine/prompts.js";
 import { AGENT_SYSTEM_PROMPT } from "./prompt.js";
 import { computeAutoTuneParams } from "../engine/autotune.js";
 import { closeAllShellBridges, setShellProgressCallback } from "./tools/bash.js";
+import { resolveSystemPrompt } from "../engine/core.js";
 
 const MAX_STEPS = 25;
 
@@ -15,6 +16,7 @@ export interface AgentConfig {
   apiKey?: string;
   cwd: string;
   autoApprove: boolean;
+  godmode?: boolean;
   onShellProgress?: (data: { type: "stdout" | "stderr"; data: string }) => void;
 }
 
@@ -27,8 +29,11 @@ export async function* agentLoop(
 
   // Agent mode with tools is always used in chat so the model can act on the
   // very first user message (e.g. "list the current directory").
+  const systemPrompt = config.godmode
+    ? resolveSystemPrompt(config.model, true)
+    : AGENT_SYSTEM_PROMPT;
   const messages: AgentMessage[] = [
-    { role: "system", content: AGENT_SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
     ...history,
     { role: "user", content: userMessage },
   ];

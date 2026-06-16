@@ -13,7 +13,7 @@ export function loadConfig() {
     ensureDir();
     try {
         const raw = readFileSync(CONFIG_PATH, "utf8");
-        return JSON.parse(raw);
+        return { godmode: false, ...JSON.parse(raw) };
     }
     catch {
         return {
@@ -24,6 +24,7 @@ export function loadConfig() {
             autoTune: true,
             stmEnabled: true,
             telemetry: false,
+            godmode: false,
         };
     }
 }

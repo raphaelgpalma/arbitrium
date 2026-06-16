@@ -16,7 +16,7 @@ export function loadConfig(): ArbConfig {
   ensureDir();
   try {
     const raw = readFileSync(CONFIG_PATH, "utf8");
-    return JSON.parse(raw);
+    return { godmode: false, ...JSON.parse(raw) };
   } catch {
     return {
       provider: "openrouter",
@@ -26,6 +26,7 @@ export function loadConfig(): ArbConfig {
       autoTune: true,
       stmEnabled: true,
       telemetry: false,
+      godmode: false,
     };
   }
 }

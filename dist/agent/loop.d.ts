@@ -6,6 +6,7 @@ export interface AgentConfig {
     apiKey?: string;
     cwd: string;
     autoApprove: boolean;
+    godmode?: boolean;
     onShellProgress?: (data: {
         type: "stdout" | "stderr";
         data: string;
