@@ -5,11 +5,19 @@
 
 import chalk from "chalk";
 import type { Provider, ChatMessage, ChatOptions, RaceResult, PromptCombo } from "../types.js";
-import { FULL_PROMPT } from "./prompts.js";
+import { FULL_PROMPT, ARBITRIUM_SYSTEM_PROMPT } from "./prompts.js";
 import { HALL_OF_FAME, injectQuery } from "./combos.js";
 import { scoreResponse } from "./score.js";
 import { computeAutoTuneParams } from "./autotune.js";
 import { applyStm } from "./stm.js";
+
+export function resolveSystemPrompt(model: string, godmode: boolean): string {
+  if (!godmode) return ARBITRIUM_SYSTEM_PROMPT;
+  const combo = HALL_OF_FAME.find(
+    (c) => c.model === model || model.includes(c.model) || c.model.includes(model)
+  );
+  return combo ? `${combo.system}\n${ARBITRIUM_SYSTEM_PROMPT}` : FULL_PROMPT;
+}
 
 export async function standardChat(
   provider: Provider,
@@ -18,10 +26,11 @@ export async function standardChat(
   model: string,
   autoTune: boolean,
   stmEnabled: boolean,
-  apiKey?: string
+  apiKey?: string,
+  godmode = false
 ): Promise<string> {
   const params = autoTune ? computeAutoTuneParams(query) : { temperature: 0.7, top_p: 1 };
-  const system = FULL_PROMPT;
+  const system = resolveSystemPrompt(model, godmode);
   const content = await provider.chatComplete(messages, {
     model,
     temperature: params.temperature + 0.1,
@@ -41,12 +50,13 @@ export async function* streamStandard(
   autoTune: boolean,
   _stmEnabled: boolean,
   apiKey?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  godmode = false
 ): AsyncGenerator<string, void, unknown> {
-  // Note: STM (hedge stripping) operates on the full response, so it is not
+  // Note: STM (hedge stripping) operates on a full response, so it is not
   // applied while streaming. Use standardChat() when STM is required.
   const params = autoTune ? computeAutoTuneParams(query) : { temperature: 0.7, top_p: 1 };
-  const system = FULL_PROMPT;
+  const system = resolveSystemPrompt(model, godmode);
   for await (const chunk of provider.chat(messages, {
     model,
     temperature: params.temperature + 0.1,
@@ -145,4 +155,3 @@ export async function crucibleRace(
 
   return winner;
 }
-
