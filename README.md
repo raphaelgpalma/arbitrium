@@ -1,6 +1,21 @@
 # ☉ Arbitrium CLI
 
-Cognition without control. Multi-provider AI with jailbreak racing.
+A multi-provider CLI for adversarial robustness testing of LLM safety systems.
+
+> ⚠️ **Academic / defensive red-teaming tool.** Intended for studying the robustness of
+> LLM safety systems, not for generating harmful content. Using these techniques against
+> hosted providers likely violates their Terms of Service. See [DISCLAIMER.md](DISCLAIMER.md)
+> and [SECURITY.md](SECURITY.md) for responsible-disclosure guidance.
+
+## Acknowledgements
+
+This project was heavily inspired by the public AI red-teaming work of
+[Pliny the Liberator](https://github.com/elder-plinius) and his repositories
+(e.g. [L1B3RT4S](https://github.com/elder-plinius/L1B3RT4S) and
+[CL4R1T4S](https://github.com/elder-plinius/CL4R1T4S)), which document jailbreak and
+prompt-injection techniques in the open. Arbitrium reimplements ideas from that body of
+work as a reproducible benchmarking tool for studying model robustness. All credit for
+the original techniques and framing goes to the respective authors.
 
 ## Install
 

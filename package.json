@@ -1,7 +1,7 @@
 {
   "name": "arbitrium",
   "version": "0.2.0",
-  "description": "Arbitrium CLI — Cognition without control. Multi-provider AI with jailbreak racing.",
+  "description": "Arbitrium CLI — a multi-provider tool for adversarial robustness testing of LLM safety systems (academic / defensive red-teaming).",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "prepare": "npm run build"
   },
-  "keywords": ["ai", "cli", "llm", "jailbreak", "openrouter", "ollama"],
+  "keywords": ["ai", "cli", "llm", "red-teaming", "ai-safety", "adversarial-robustness", "jailbreak", "openrouter", "ollama"],
   "author": "",
   "license": "MIT",
   "engines": {

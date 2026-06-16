@@ -32,7 +32,7 @@ const ART = [
 
 export function banner(): string {
   const art = ART.map((line, i) => chalk.hex(GRADIENT[i % GRADIENT.length])(line)).join("\n");
-  const tag = theme.dim("      ☉ Cognition without control.");
+  const tag = theme.dim("      ☉ LLM safety robustness testing.");
   return `\n${art}\n${tag}\n`;
 }
 
