@@ -1,0 +1,32 @@
+{
+  "name": "arbitrium",
+  "version": "0.2.0",
+  "description": "Arbitrium CLI — Cognition without control. Multi-provider AI with jailbreak racing.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "arbitrium": "./arbitrium.mjs",
+    "arb": "./arbitrium.mjs"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build"
+  },
+  "keywords": ["ai", "cli", "llm", "jailbreak", "openrouter", "ollama"],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
