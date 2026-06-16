@@ -23,7 +23,7 @@ const COMMAND_HELP = [
     ["ask <question>", "Ask a single question (one-shot)"],
     ["race <question>", "Run a Crucible race (multi-model)"],
     ["config", "Configure provider, model, API key"],
-    ["models", "List available models for the current provider"],
+    ["models [jailbreak]", "List available models (or only jailbreak-ready ones)"],
     ["model <id>", "Quick-set the active model"],
     ["providers", "List supported providers"],
     ["status", "Show current config and session status"],

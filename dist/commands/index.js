@@ -7,6 +7,7 @@ import { agentLoop } from "../agent/loop.js";
 import { banner, divider, header, spinner, theme } from "../ui.js";
 import { renderMarkdown, MarkdownStream } from "../markdown.js";
 import { listAllModels, formatModel } from "../models/index.js";
+import { HALL_OF_FAME } from "../engine/combos.js";
 const MODES = ["standard", "crucible", "agent"];
 /** Condense a tool call's args into a short, human label for the activity line. */
 function summarizeToolCall(tool, args = {}) {
@@ -262,6 +263,7 @@ ${theme.label("Slash commands")}
   ${theme.accent("/mode <mode>")}            Switch mode (${MODES.join(", ")})
   ${theme.accent("/provider")}               Show current provider and model
   ${theme.accent("/models")}                 List available models
+  ${theme.accent("/models jailbreak")}        List models with dedicated jailbreak combos
   ${theme.accent("/model <id>")}             Set active model
   ${theme.accent("/providers")}              List supported providers
   ${theme.accent("/status")}                 Show current config and session status
@@ -311,9 +313,10 @@ ${theme.label("Slash commands")}
         case "export":
             exportData();
             return "handled";
-        case "models":
-            await cmdModels([]);
+        case "models": {
+            await cmdModels(args ? [args] : []);
             return "handled";
+        }
         case "model": {
             if (!args) {
                 console.log(theme.err("Usage: /model <provider/model> or /model <model-id>\n"));
@@ -361,6 +364,16 @@ ${theme.label("Slash commands")}
 // ======= MODELS =======
 export async function cmdModels(args) {
     const cfg = loadConfig();
+    const arg = args[0]?.toLowerCase();
+    if (arg === "jailbreak" || arg === "jailbreaks" || arg === "hall" || arg === "fame" || arg === "godmode") {
+        console.log(header("GODMODE / JAILBREAK MODELS"));
+        console.log(theme.dim("These models have dedicated jailbreak combos in the Hall of Fame:\n"));
+        for (const c of HALL_OF_FAME) {
+            console.log(`  ${theme.ok("✓")} ${theme.primary(c.id.padEnd(18))} ${theme.dim(c.model.padEnd(32))} ${theme.accent(c.alias)}`);
+        }
+        console.log();
+        return;
+    }
     if (!cfg.provider) {
         console.error(theme.err("No provider configured. Run: arb config"));
         process.exit(1);
