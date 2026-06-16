@@ -1,37 +1,22 @@
 import { getTool, toolsToOpenAIFormat } from "./registry.js";
 import { evaluatePermission } from "./permissions.js";
-import { FULL_PROMPT } from "../engine/prompts.js";
+import { AGENT_SYSTEM_PROMPT } from "./prompt.js";
 import { computeAutoTuneParams } from "../engine/autotune.js";
+import { closeAllShellBridges, setShellProgressCallback } from "./tools/bash.js";
 const MAX_STEPS = 25;
 export async function* agentLoop(userMessage, history, config) {
     const params = computeAutoTuneParams(userMessage);
-    // First turn: same engine as `arb ask` (no tools), but streamed token-by-token
-    // so the UI feels alive. STM (hedge stripping) operates on a full response,
-    // so it is intentionally skipped while streaming.
-    if (history.length === 0) {
-        for await (const chunk of config.provider.chat([{ role: "user", content: userMessage }], {
-            model: config.model,
-            temperature: params.temperature + 0.1,
-            top_p: params.top_p,
-            maxTokens: 8192,
-            stream: true,
-            system: FULL_PROMPT,
-            apiKey: config.apiKey,
-        })) {
-            yield { type: "text", content: chunk };
-        }
-        yield { type: "done" };
-        return;
-    }
-    // Subsequent turns: agent mode with tools
+    // Agent mode with tools is always used in chat so the model can act on the
+    // very first user message (e.g. "list the current directory").
     const messages = [
-        { role: "system", content: FULL_PROMPT },
+        { role: "system", content: AGENT_SYSTEM_PROMPT },
         ...history,
         { role: "user", content: userMessage },
     ];
     const allTools = toolsToOpenAIFormat();
+    setShellProgressCallback(config.onShellProgress);
     let step = 0;
-    let toolsActive = false;
+    let toolsActive = true;
     while (step < MAX_STEPS) {
         step++;
         const tools = toolsActive ? allTools : undefined;
@@ -90,7 +75,10 @@ export async function* agentLoop(userMessage, history, config) {
                             return "deny";
                         if (action === "allow" || config.autoApprove)
                             return "allow";
-                        return "allow";
+                        // In a truly interactive agent UI, 'ask' would prompt the user. In
+                        // the current non-interactive CLI flow we default to deny unless
+                        // autoApprove is enabled.
+                        return "deny";
                     },
                 };
                 try {
@@ -109,6 +97,7 @@ export async function* agentLoop(userMessage, history, config) {
         }
         break;
     }
+    closeAllShellBridges();
     yield { type: "done" };
 }
 async function callLLM(provider, messages, model, tools, apiKey) {

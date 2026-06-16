@@ -1,5 +1,9 @@
 import type { PermissionRule } from "./types.js";
 
+// Permission rule precedence: later rules override earlier ones. The default
+// set mirrors how OpenCode/Claude Code treat the shell: common read-only and
+// build commands are safe to run automatically; destructive or privileged
+// commands require explicit approval; dangerous commands are blocked outright.
 const DEFAULT_RULES: PermissionRule[] = [
   { permission: "bash", pattern: "git *", action: "allow" },
   { permission: "bash", pattern: "npm *", action: "allow" },
@@ -46,11 +50,17 @@ export function evaluatePermission(
   pattern: string,
   rules: PermissionRule[] = DEFAULT_RULES
 ): "allow" | "ask" | "deny" {
+  const trimmed = pattern.trim().toLowerCase();
+  const firstToken = trimmed.split(/\s+/)[0] || trimmed;
   for (let i = rules.length - 1; i >= 0; i--) {
     const rule = rules[i];
-    if (matchWildcard(permission, rule.permission) && matchWildcard(pattern, rule.pattern)) {
-      return rule.action;
-    }
+    if (!matchWildcard(permission, rule.permission)) continue;
+    const ruleLower = rule.pattern.toLowerCase();
+    // Match against the full command string first.
+    if (matchWildcard(trimmed, ruleLower)) return rule.action;
+    // Also allow a rule like "ls *" to match the bare command "ls".
+    const ruleFirstToken = ruleLower.split(/\s+/)[0];
+    if (ruleLower.includes(" ") && firstToken === ruleFirstToken) return rule.action;
   }
   return "ask";
 }

@@ -6,6 +6,10 @@ export interface AgentConfig {
     apiKey?: string;
     cwd: string;
     autoApprove: boolean;
+    onShellProgress?: (data: {
+        type: "stdout" | "stderr";
+        data: string;
+    }) => void;
 }
 export declare function agentLoop(userMessage: string, history: AgentMessage[], config: AgentConfig): AsyncGenerator<{
     type: "text" | "tool_start" | "tool_end" | "permission" | "done";

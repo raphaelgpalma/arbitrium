@@ -2,7 +2,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { resolve, relative } from "node:path";
 export const readTool = {
     name: "read",
-    description: "Read a file or directory. For files, returns content with line numbers. For directories, returns listing. Supports offset and limit for large files.",
+    description: "Read a file or directory. For files, returns content with line numbers. For directories, returns listing. Supports offset and limit for large files. Prefer read for file operations instead of cat when using the agent.",
     parameters: {
         filePath: { type: "string", description: "Absolute path to the file or directory to read", required: true },
         offset: { type: "number", description: "Line number to start reading from (1-indexed)" },

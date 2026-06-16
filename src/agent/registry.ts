@@ -7,6 +7,7 @@ import { globTool } from "./tools/glob.js";
 import { grepTool } from "./tools/grep.js";
 import { todowriteTool } from "./tools/todowrite.js";
 import { questionTool } from "./tools/question.js";
+import { closeAllShellBridges } from "./tools/bash.js";
 
 const ALL_TOOLS: ToolDef[] = [
   readTool,
@@ -25,6 +26,11 @@ export function getTools(): ToolDef[] {
 
 export function getTool(name: string): ToolDef | undefined {
   return ALL_TOOLS.find((t) => t.name === name);
+}
+
+/** Dispose of any resources held by tools (e.g. persistent shells). */
+export function disposeTools(): void {
+  closeAllShellBridges();
 }
 
 export function toolsToOpenAIFormat(): Array<{

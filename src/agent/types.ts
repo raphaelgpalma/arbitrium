@@ -21,7 +21,8 @@ export interface ToolResult {
 
 export interface ToolContext {
   cwd: string;
-  ask: (permission: string, pattern: string) => Promise<"allow" | "deny">;
+  /** Evaluate a permission rule. Returns 'allow', 'ask', or 'deny'. */
+  ask: (permission: string, pattern: string) => Promise<"allow" | "ask" | "deny">;
   signal?: AbortSignal;
 }
 

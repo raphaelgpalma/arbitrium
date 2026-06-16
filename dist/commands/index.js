@@ -199,6 +199,12 @@ ${theme.label("Commands")}
                 apiKey: cfg.apiKey,
                 cwd: process.cwd(),
                 autoApprove: true,
+                onShellProgress: (p) => {
+                    if (p.type === "stdout" || p.type === "stderr") {
+                        stopSpin();
+                        process.stdout.write(theme.dim(p.data));
+                    }
+                },
             })) {
                 if (event.type === "text") {
                     stopSpin();
